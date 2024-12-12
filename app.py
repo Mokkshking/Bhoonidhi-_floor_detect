@@ -29,8 +29,11 @@ processor = AutoProcessor.from_pretrained(
 )
 
 # Configure Google Gemini API (make sure to set your valid API key)
-genai.configure(api_key="AIzaSyAQJAG91WjD1Y7jdLjlQaMClntS5JCWnpY")  # Replace with your key
+genai.configure(api_key="AIzaSyDnqbvPV1-_VfT0kkn69EnstsA0mdFgSw8")  # Replace with your key
 
+@app.get("/")
+async def default_get():
+    return JSONResponse(content={"message": "Hello, World!"})
 
 @app.post("/process-image/")
 async def process_image(file: UploadFile = File(...)):
@@ -95,9 +98,46 @@ async def process_image(file: UploadFile = File(...)):
         response = genai.GenerativeModel(model_name="gemini-1.5-pro").generate_content(
             [payload, prompt]
         )
-
+        #print(response.text)
         # Return the Gemini response as a JSON
-        return JSONResponse(content={"response": response.text, "model_output": output_text[0]})
+        # return JSONResponse(content={"response": response.text, "model_output": output_text[0]}
+        #return JSONResponse(content=[response.text, output_text[0]])
+        import json
+        import re
+
+        try:
+            # Assume gemini_output_raw is the raw text from the response
+            gemini_output_raw = response._result.candidates[0].content.parts[0].text
+
+            # Step 1: Remove markdown-like delimiters
+            clean_text = gemini_output_raw.strip("```json").strip("```")
+
+            # Step 2: Remove inline comments (e.g., `// Approximate`)
+            clean_text = re.sub(r"//.*", "", clean_text)
+
+            # Step 3: Parse the cleaned JSON
+            parsed_output = json.loads(clean_text)
+
+            # Access the parsed data
+            description = parsed_output["description"]
+            floors = parsed_output["floors"]
+            height = parsed_output["height"]["value"]
+            width = parsed_output["width"]["value"]
+
+            # # Print parsed data
+            # print(f"Description: {description}")
+            # print(f"Floors: {floors}")
+            # print(f"Height: {height} meters")
+            # print(f"Width: {width} meters")
+            #
+            # print("Parsed JSON Object:")
+            #print(json.dumps(parsed_output, indent=4))
+            return json.dumps(parsed_output, indent=4)
+
+        except json.JSONDecodeError as e:
+            print("Error decoding JSON:", e)
+        except Exception as e:
+            print("Unexpected error:", e)
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
@@ -105,4 +145,4 @@ async def process_image(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8005)
